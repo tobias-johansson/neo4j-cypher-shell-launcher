@@ -1,0 +1,32 @@
+version: "3.3"
+services:
+  neo4j:
+    build:
+      context: .
+      dockerfile: neo4j.dockerfile
+    hostname: shell
+    environment:
+      - EXTENDED_CONF=yes
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_server_directories_logs=$$(bash -c 'echo "logs/$$HOSTNAME"')
+      - NEO4J_systemdb_secrets_keystore_path=/var/lib/neo4j/conf/secrets
+      - NEO4J_systemdb_secrets_keystore_password=foobar
+      - NEO4J_systemdb_secrets_key_name=secrets
+    volumes:
+      - ./mount:/mount
+      - logs:/var/lib/neo4j/logs
+
+  logs:
+    build:
+      context: .
+      dockerfile: logviewer.dockerfile
+      args:
+        logViewerVersion: 1.0.3
+    volumes:
+      - logs:/logs
+    ports:
+      - "8111:8111"
+
+volumes:
+  logs:

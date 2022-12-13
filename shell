@@ -1,0 +1,118 @@
+#!/bin/bash
+# set -x
+script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+pushd "$script_dir" > /dev/null
+
+args=("$@")
+
+layers=()
+command=()
+for arg in ${args[@]}; do
+  if [[ "$arg" = @* ]]; then
+    layers+=(${arg:1})
+  else
+    command+=($arg)
+  fi
+done
+
+[ ${#layers[@]} -eq 0 ] && layers=("dev")
+[ ${#command[@]} -eq 0 ] && command=("run")
+
+project="shell"
+files=("-f docker-compose.yml")
+for layer in ${layers[@]}; do
+  project="${project}-${layer}"
+  files+=("-f docker-compose.${layer}.yml")
+done
+
+dkc="docker-compose -p ${project} ${files[@]}"
+
+show_config() {
+  echo "project: ${project}"
+  echo "layers: ${layers[@]}"
+  echo "command: ${command[@]}"
+  echo "files: ${files[@]}"
+  $dkc config | yq e '.services.neo4j' -
+}
+
+up() {
+  show_config
+  $dkc up --build --detach
+}
+
+shell() {
+  for i in $(seq 1 10); do 
+    [ $i -gt 1 ] && sleep 1
+    $dkc exec neo4j cypher-shell -u neo4j -p password && s=0 && break || s=$?
+  done
+  (exit $s)
+}
+
+tc() {
+  token=$(cat $HOME/.config/TeamCity.token | tr -d '\n')
+  rest="https://live.neo4j-build.io/app/rest"
+  curl -L \
+      --header "Authorization: Bearer $token" \
+      --header "Accept: application/json" \
+      "$rest/$1"
+}
+
+load() {
+  token=$(cat $HOME/.config/TeamCity.token | tr -d '\n')
+  build="Neo4jDev_Docker"
+
+  id=$(tc "builds/buildType:$build,status:SUCCESS,count:1/" \
+          | jq -r '.id')
+  file=$(tc "builds/id:$id/artifacts/children/" \
+          | jq -r '.file[] | .name' | grep 'neo4j-enterprise' | grep 'loadable')
+  tc "builds/id:$id/artifacts/content/$file" \
+    | docker load
+}
+
+
+main() {
+  cd -- "$(dirname "$0")"
+  case "${command[@]}" in
+      up)
+          up
+          ;;
+      run)
+          up
+          shell
+          ;;
+      down)
+          show_config
+          $dkc down --volumes
+          ;;
+      ps)
+          show_config
+          $dkc ps --all
+          ;;
+      bash)
+          show_config
+          $dkc exec neo4j bash
+          ;;
+      load)
+          load
+          ;;
+      projects)
+          projects=$(docker ps -a --format '{{.ID}}' \
+                    | xargs docker inspect \
+                    | jq -r '.[] | .Config.Labels["com.docker.compose.project"]' \
+                    | sort -i -u \
+                    | grep -v "^null$")
+          for proj in $projects; do
+            echo "> $proj"
+            docker ps --filter "label=com.docker.compose.project=$proj"
+          done
+          ;;
+      *)
+          show_config
+          $dkc ${command[@]}
+  esac
+}
+
+main $@
+
+
+

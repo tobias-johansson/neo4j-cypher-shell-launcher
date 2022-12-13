@@ -1,0 +1,14 @@
+version: "3.3"
+services:
+  neo4j:
+    environment:
+      - NEO4J_fabric_database_name=fabric
+      - NEO4J_fabric_graph_0_uri=neo4j://localhost:7687
+      - NEO4J_fabric_graph_0_database=peopledb
+      - NEO4J_fabric_graph_0_name=people
+      - NEO4J_fabric_graph_1_uri=neo4j://localhost:7687
+      - NEO4J_fabric_graph_1_database=postsdb1
+      - NEO4J_fabric_graph_1_name=posts1
+      - NEO4J_fabric_graph_2_uri=neo4j://localhost:7687
+      - NEO4J_fabric_graph_2_database=postsdb2
+      - NEO4J_fabric_graph_2_name=posts2

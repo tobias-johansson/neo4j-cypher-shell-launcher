@@ -1,5 +1,35 @@
 #!/bin/bash
 # set -x
+
+
+# Usage:
+#
+#   $ ./shell [@layer1 @layer2 ...] [command]
+#
+#     Launches a neo4j instance with docker-compose.
+#     Configuration is done through layers, enabled with e.g. @foo. These are applied as 
+#     overlayed docker-compose files, e.g. docker-compose.foo.yml. Default layers are 
+#     configured in .shell.config
+#     The command is realyed to docker-compose, with some convenience commands added by this script
+#
+# Examples:
+#
+#   $ ./shell @4.4
+#
+#     Starts a Neo4j 4.4 and launches a cypher-shell. Neo4j ports are mapped to the host machine
+#
+#   
+#   $ ./shell @4.4 @ports up
+#
+#     Starts a Neo4j 4.4. Neo4j ports are mapped to the host machine for use with e.g. Browser
+#   
+#
+#   $ ./shell @dev bash
+#   Starts a Neo4j using the compose layers docker-compose.yml, docker-compose.dev.yml
+#   and launches a cypher-shell 
+#
+#   Uses the compose layers docker-compose.yml, docker-compose.4.4.yml, docker-compose.ports.yml 
+
 script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 pushd "$script_dir" > /dev/null
 
@@ -15,8 +45,18 @@ for arg in ${args[@]}; do
   fi
 done
 
-[ ${#layers[@]} -eq 0 ] && layers=("dev")
+config="$script_dir/.shell.config"
+shell_default_layers=("dev")
+
+if [[ -f "$config" ]]; then
+  source "$config"
+fi
+
+[ ${#layers[@]} -eq 0 ] && layers=("${shell_default_layers[@]}")
 [ ${#command[@]} -eq 0 ] && command=("run")
+
+echo "${#layers[@]}"
+echo "${layers[@]}"
 
 project="shell"
 files=("-f docker-compose.yml")
@@ -58,15 +98,15 @@ tc() {
 }
 
 load() {
-  token=$(cat $HOME/.config/TeamCity.token | tr -d '\n')
   build="Neo4jDev_Docker"
 
   id=$(tc "builds/buildType:$build,status:SUCCESS,count:1/" \
           | jq -r '.id')
   file=$(tc "builds/id:$id/artifacts/children/" \
           | jq -r '.file[] | .name' | grep 'neo4j-enterprise' | grep 'loadable')
-  tc "builds/id:$id/artifacts/content/$file" \
-    | docker load
+  image=$(tc "builds/id:$id/artifacts/content/$file" \
+          | docker load -q | tail -n 1 | cut -d ' ' -f 3)
+  docker image tag "$image" "neo4j:dev"
 }
 
 
@@ -95,17 +135,25 @@ main() {
       load)
           load
           ;;
-      projects)
+      pss)
           projects=$(docker ps -a --format '{{.ID}}' \
                     | xargs docker inspect \
                     | jq -r '.[] | .Config.Labels["com.docker.compose.project"]' \
                     | sort -i -u \
-                    | grep -v "^null$")
+                    | grep "^shell")
           for proj in $projects; do
-            echo "> $proj"
+            echo "--- $proj"
             docker ps --filter "label=com.docker.compose.project=$proj"
           done
           ;;
+      default)
+        exec >"$config"
+        printf "shell_default_layers=("
+        for x in  ${layers[@]}; do
+          printf '"%s" ' "$x"
+        done
+        printf ")\n"
+        ;;
       *)
           show_config
           $dkc ${command[@]}
@@ -113,6 +161,3 @@ main() {
 }
 
 main $@
-
-
-

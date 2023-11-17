@@ -3,4 +3,4 @@ services:
   neo4j:
     build:
       args:
-        neo4jVersion: 5.4.0-enterprise
+        neo4jVersion: dev

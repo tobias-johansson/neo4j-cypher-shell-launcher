@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="ERROR" monitorInterval="30" packages="org.neo4j.logging.log4j">
+
+    <Appenders>
+        <Elasticsearch name="ES_User">
+            <IndexName indexName="neo4j" />
+            <JsonTemplateLayout eventTemplateUri="classpath:org/neo4j/logging/StructuredJsonLayout.json"/>
+            <AsyncBatchDelivery>
+                <JestHttp serverUris="http://elk:9200" />
+            </AsyncBatchDelivery>
+        </Elasticsearch>
+        
+        <Console name="ConsoleAppender" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSSZ}{GMT+0} %-5p %m%n"/>
+        </Console>
+    </Appenders>
+
+    
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="ES_User"/>
+            <AppenderRef ref="ConsoleAppender"/>
+        </Root>
+    </Loggers>
+
+</Configuration>

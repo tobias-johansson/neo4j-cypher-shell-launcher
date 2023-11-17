@@ -1,2 +1,0 @@
-
-RETURN 1 AS r

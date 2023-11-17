@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="ERROR" monitorInterval="30" packages="org.neo4j.logging.log4j">
+
+    
+    <Appenders>
+        <Elasticsearch name="ES_Query">
+            <IndexName indexName="neo4j" />
+            <!-- <JacksonJsonLayout /> -->
+            <JsonTemplateLayout eventTemplateUri="classpath:org/neo4j/logging/StructuredJsonLayout.json"/>
+            <AsyncBatchDelivery>
+                <JestHttp serverUris="http://elk:9200" />
+            </AsyncBatchDelivery>
+        </Elasticsearch>
+
+        <Elasticsearch name="ES_Generic">
+            <IndexName indexName="neo4j" />
+            <!-- <JacksonJsonLayout /> -->
+            <JsonTemplateLayout eventTemplateUri="classpath:org/neo4j/logging/StructuredLayoutWithMessage.json"/>
+            <AsyncBatchDelivery>
+                <JestHttp serverUris="http://elk:9200" />
+            </AsyncBatchDelivery>
+        </Elasticsearch>
+
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="JsonConsole"/>
+            <AppenderRef ref="ES_Generic"/>
+        </Root>
+
+        <Logger name="QueryLogger" level="INFO" additivity="false">
+            <AppenderRef ref="JsonConsole"/>
+            <AppenderRef ref="ES_Query"/>
+        </Logger>
+
+        <Logger name="HttpLogger" level="INFO" additivity="false">
+            <AppenderRef ref="JsonConsole"/>
+            <AppenderRef ref="ES_Generic"/>
+        </Logger>
+
+        <Logger name="SecurityLogger" level="INFO" additivity="false">
+            <AppenderRef ref="JsonConsole"/>
+            <AppenderRef ref="ES_Query"/>
+        </Logger>
+    </Loggers>
+</Configuration>

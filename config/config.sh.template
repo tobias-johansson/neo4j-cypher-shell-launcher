@@ -1,0 +1,2 @@
+shell_default_layers=("latest")
+shell_tc_dev_build="Neo4jDev_Docker_DockerArmDebian"

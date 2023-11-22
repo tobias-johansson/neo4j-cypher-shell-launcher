@@ -7,7 +7,7 @@ services:
     build:
       args:
         neo4jLogging: elk
-        
+
   elk:
     # Might require on host machine > sudo sysctl -w vm.max_map_count=262144
     build:

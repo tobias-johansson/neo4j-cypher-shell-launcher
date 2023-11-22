@@ -1,10 +1,6 @@
 version: "3.3"
 services:
   neo4j:
-    build:
-      context: ./build/neo4j/
-      args:
-        neo4jLogging: std
     hostname: shell
     environment:
       - EXTENDED_CONF=yes

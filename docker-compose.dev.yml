@@ -1,6 +1,4 @@
 version: "3.3"
 services:
   neo4j:
-    build:
-      args:
-        neo4jVersion: dev
+    image: neo4j:${shell_tc_dev_build}

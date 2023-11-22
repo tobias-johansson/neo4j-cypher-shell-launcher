@@ -1,37 +1,15 @@
 #!/bin/bash
+set -e
 # set -x
-
-
-# Usage:
-#
-#   $ ./shell [@layer1 @layer2 ...] [command]
-#
-#     Launches a neo4j instance with docker-compose.
-#     Configuration is done through layers, enabled with e.g. @foo. These are applied as 
-#     overlayed docker-compose files, e.g. docker-compose.foo.yml. Default layers are 
-#     configured in .shell.config
-#     The command is realyed to docker-compose, with some convenience commands added by this script
-#
-# Examples:
-#
-#   $ ./shell @4.4
-#
-#     Starts a Neo4j 4.4 and launches a cypher-shell. Neo4j ports are mapped to the host machine
-#
-#   
-#   $ ./shell @4.4 @ports up
-#
-#     Starts a Neo4j 4.4. Neo4j ports are mapped to the host machine for use with e.g. Browser
-#   
-#
-#   $ ./shell @dev bash
-#   Starts a Neo4j using the compose layers docker-compose.yml, docker-compose.dev.yml
-#   and launches a cypher-shell 
-#
-#   Uses the compose layers docker-compose.yml, docker-compose.4.4.yml, docker-compose.ports.yml 
 
 script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 pushd "$script_dir" > /dev/null
+
+c_red='\033[0;31m'
+c_res='\033[0m'
+log() { echo -e "$@" 1>&2; }
+err() { log "${c_red}${@}${c_res}"; }
+die() { err "$@"; exit 1; }
 
 args=("$@")
 
@@ -45,18 +23,18 @@ for arg in ${args[@]}; do
   fi
 done
 
-config="$script_dir/.shell.config"
-shell_default_layers=("dev")
+config_file="${script_dir}/config/config.sh"
+auth_file="${script_dir}/config/auth.sh"
 
-if [[ -f "$config" ]]; then
-  source "$config"
-fi
+shell_default_layers=("latest")
+shell_tc_dev_build="Neo4jDev_Docker_DockerDebian"
+export shell_tc_dev_build
 
-[ ${#layers[@]} -eq 0 ] && layers=("${shell_default_layers[@]}")
+[[ -f "$config_file" ]] && source "$config_file" || err "No config file at $config_file"
+[[ -f "$auth_file"   ]] && source "$auth_file"   || err "No auth file at $auth_file"
+
+[ ${#layers[@]} -eq 0  ] && layers=("${shell_default_layers[@]}")
 [ ${#command[@]} -eq 0 ] && command=("run")
-
-echo "${#layers[@]}"
-echo "${layers[@]}"
 
 project="shell"
 files=("-f docker-compose.yml")
@@ -64,20 +42,16 @@ for layer in ${layers[@]}; do
   project="${project}-${layer}"
   files+=("-f docker-compose.${layer}.yml")
 done
+project=$(echo "${project}" | tr -d '.')
 
 dkc="docker-compose -p ${project} ${files[@]}"
 
 show_config() {
-  echo "project: ${project}"
-  echo "layers: ${layers[@]}"
-  echo "command: ${command[@]}"
-  echo "files: ${files[@]}"
-  $dkc config | yq e '.services.neo4j' -
-}
-
-up() {
-  show_config
-  $dkc up --build --detach
+  log "project: ${project}"
+  log "layers: ${layers[@]}"
+  log "command: ${command[@]}"
+  log "files: ${files[@]}"
+  $dkc config | yq e '.services.neo4j' - 1>&2
 }
 
 shell() {
@@ -88,52 +62,60 @@ shell() {
   (exit $s)
 }
 
+tc_url="https://live.neo4j-build.io/app/rest"
+
 tc() {
-  token=$(cat $HOME/.config/TeamCity.token | tr -d '\n')
-  rest="https://live.neo4j-build.io/app/rest"
+  [[ -z "$shell_tc_token" ]] && die "Please set shell_tc_token in $auth"
+
+  path="$1"; shift
   curl -L \
-      --header "Authorization: Bearer $token" \
+      --header "Authorization: Bearer $shell_tc_token" \
       --header "Accept: application/json" \
-      "$rest/$1"
+      $@ \
+      "$tc_url/$path"
 }
 
-load() {
-  build="Neo4jDev_Docker"
+fetch() {
+  build=${1:-$shell_tc_dev_build}
 
-  id=$(tc "builds/buildType:$build,status:SUCCESS,count:1/" \
+  id=$(tc "builds/buildType:$build,status:SUCCESS,count:1/" "-s" \
           | jq -r '.id')
-  file=$(tc "builds/id:$id/artifacts/children/" \
+  file=$(tc "builds/id:$id/artifacts/children/" "-s" \
           | jq -r '.file[] | .name' | grep 'neo4j-enterprise' | grep 'loadable')
-  image=$(tc "builds/id:$id/artifacts/content/$file" \
+  path="builds/id:$id/artifacts/content/$file"
+  log "Fetching $tc_url/$path"
+  image=$(tc "$path" \
           | docker load -q | tail -n 1 | cut -d ' ' -f 3)
-  docker image tag "$image" "neo4j:dev"
+  docker image tag "$image" "neo4j:$build"
 }
 
 
 main() {
   cd -- "$(dirname "$0")"
   case "${command[@]}" in
-      up)
-          up
-          ;;
       run)
-          up
+          show_config
+          $dkc up --build --detach
           shell
+          ;;
+      up)
+          show_config
+          $dkc up --build --detach
           ;;
       down)
           show_config
           $dkc down --volumes
           ;;
-      ps)
-          show_config
-          $dkc ps --all
-          ;;
       bash)
           show_config
           $dkc exec neo4j bash
           ;;
-      load)
-          load
+      fetch*)
+          fetch ${@:2}
+          ;;
+      ps)
+          show_config
+          $dkc ps --all
           ;;
       pss)
           projects=$(docker ps -a --format '{{.ID}}' \
@@ -146,14 +128,6 @@ main() {
             docker ps --filter "label=com.docker.compose.project=$proj"
           done
           ;;
-      default)
-        exec >"$config"
-        printf "shell_default_layers=("
-        for x in  ${layers[@]}; do
-          printf '"%s" ' "$x"
-        done
-        printf ")\n"
-        ;;
       *)
           show_config
           $dkc ${command[@]}

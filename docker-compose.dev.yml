@@ -1,4 +1,5 @@
 version: "3.3"
 services:
   neo4j:
+    # Uses image downloaded from TeamCity using `./shell fetch`
     image: neo4j:${shell_tc_dev_build}

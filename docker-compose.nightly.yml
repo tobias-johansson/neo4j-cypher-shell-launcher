@@ -1,0 +1,7 @@
+version: "3.3"
+services:
+  neo4j:
+    # Nightly builds from dev are published to 535893049302.dkr.ecr.eu-west-1.amazonaws.com
+    # Requires auth to be set up (neo4j-dev account):
+    # > aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 535893049302.dkr.ecr.eu-west-1.amazonaws.com
+    image: 535893049302.dkr.ecr.eu-west-1.amazonaws.com/neo4j-build:dev-enterprise-nightly

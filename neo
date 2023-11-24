@@ -23,20 +23,19 @@ for arg in ${args[@]}; do
   fi
 done
 
+neo_default_layers=("latest")
+neo_tc_dev_build="Neo4jDev_Docker_DockerDebian"
+export neo_tc_dev_build
+
 config_file="${script_dir}/config/config.sh"
 auth_file="${script_dir}/config/auth.sh"
-
-shell_default_layers=("latest")
-shell_tc_dev_build="Neo4jDev_Docker_DockerDebian"
-export shell_tc_dev_build
-
 [[ -f "$config_file" ]] && source "$config_file" || err "No config file at $config_file"
 [[ -f "$auth_file"   ]] && source "$auth_file"   || err "No auth file at $auth_file"
 
-[ ${#layers[@]} -eq 0  ] && layers=("${shell_default_layers[@]}")
+[ ${#layers[@]} -eq 0  ] && layers=("${neo_default_layers[@]}")
 [ ${#command[@]} -eq 0 ] && command=("run")
 
-project="shell"
+project="neo"
 files=("-f docker-compose.yml")
 for layer in ${layers[@]}; do
   project="${project}-${layer}"
@@ -51,7 +50,6 @@ show_config() {
   log "layers: ${layers[@]}"
   log "command: ${command[@]}"
   log "files: ${files[@]}"
-  $dkc config | yq e '.services.neo4j' - 1>&2
 }
 
 shell() {
@@ -65,18 +63,18 @@ shell() {
 tc_url="https://live.neo4j-build.io/app/rest"
 
 tc() {
-  [[ -z "$shell_tc_token" ]] && die "Please set shell_tc_token in $auth"
+  [[ -z "$neo_tc_token" ]] && die "Please set neo_tc_token in $auth_file"
 
   path="$1"; shift
   curl -L \
-      --header "Authorization: Bearer $shell_tc_token" \
+      --header "Authorization: Bearer $neo_tc_token" \
       --header "Accept: application/json" \
       $@ \
       "$tc_url/$path"
 }
 
 fetch() {
-  build=${1:-$shell_tc_dev_build}
+  build=${1:-$neo_tc_dev_build}
 
   id=$(tc "builds/buildType:$build,status:SUCCESS,count:1/" "-s" \
           | jq -r '.id')
@@ -127,6 +125,10 @@ main() {
             echo "--- $proj"
             docker ps --filter "label=com.docker.compose.project=$proj"
           done
+          ;;
+      debug)
+          show_config
+          $dkc exec neo4j /mount/tools/debug.sh
           ;;
       *)
           show_config

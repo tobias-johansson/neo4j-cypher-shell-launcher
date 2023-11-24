@@ -1,5 +1,19 @@
 version: "3.3"
 services:
   neo4j:
+    environment:
+     - NEO4J_dbms_cluster_discovery_resolver__type=DNS
+     - NEO4J_dbms_cluster_discovery_endpoints=member:5000
+     - NEO4J_server_discovery_listen__address=$(/mount/tools/ip.sh 5000)
+     - NEO4J_server_discovery_advertised__address=$(/mount/tools/ip.sh 5000)
+     - NEO4J_server_cluster_advertised__address=$(/mount/tools/ip.sh 6000)
+     - NEO4J_server_cluster_raft_advertised__address=$(/mount/tools/ip.sh 7000)
     deploy:
       replicas: 3
+    networks:
+      cluster:
+        aliases:
+          - member
+
+networks:
+  cluster:
